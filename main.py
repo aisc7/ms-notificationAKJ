@@ -42,11 +42,13 @@ def send_email(subject, recipient_email, body_html):
     except Exception as e:
         return False, str(e)
 
+# Endopoint para enviar correos
 @app.route('/send-email', methods=['POST'])
 def send_email_endpoint():
     data = request.json
     subject = data.get('subject')
     recipient = data.get('recipient')
+    
     body_html = data.get('body_html')
     
     success = send_email(subject, recipient, body_html)
@@ -58,6 +60,14 @@ def send_email_endpoint():
     else:
         print('Failed to send email')
         return jsonify({'error': 'Failed to send email'})
+    
+# Endpoint para obtener usuarios
+@app.route('/get-users', methods=['GET'])
+def get_users():
+    return jsonify([
+        {'name': 'John Doe', 'email': 'name@example.com'},
+        {'name': 'John Doe', 'email': 'name@example.com'}
+    ])
 
 if __name__ == '__main__':
     app.run(debug=True)
