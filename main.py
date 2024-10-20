@@ -48,9 +48,8 @@ def send_email_endpoint():
     data = request.json
     subject = data.get('subject')
     recipient = data.get('recipient')
-    content = data.get('content')
     
-    body_html = generate_template_send_token(content)
+    body_html = data.get('body_html')
     
     success = send_email(subject, recipient, body_html)
     print(f'Success: {success}')
