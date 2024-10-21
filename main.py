@@ -68,6 +68,23 @@ def get_users():
         {'name': 'John Doe', 'email': 'name@example.com'},
         {'name': 'John Doe', 'email': 'name@example.com'}
     ])
+    
+# Enpoint para validar usuarios
+@app.route("/validation", methods=['POST'])
+def ValidationUser():
+    data = request.json
+    email = data.get('email')
+    code = data.get('code')
+    subject = "Código de validación"
+    
+    success = send_email(subject, email, code)
+    
+    if success:
+        print('Email sent successfully')
+        return jsonify({'message': 'Email sent successfully'})
+    else:
+        print('Failed to send email')
+        return jsonify({'error': 'Failed to send email'})
 
 if __name__ == '__main__':
     app.run(debug=True)
