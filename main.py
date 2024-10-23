@@ -5,80 +5,89 @@ from email.mime.text import MIMEText
 from flask import Flask, request, jsonify
 from dotenv import load_dotenv
 
-# Cargar variables de entorno
+# Cargar las variables de entorno
 load_dotenv()
-
 app = Flask(__name__)
 
-# Obtener las variables de entorno para SMTP
-smtp_server = os.getenv("SMTP_SERVER")  # Por ejemplo: smtp.ucaldas.edu.co
-smtp_port = int(os.getenv("SMTP_PORT"))  # Asegúrate de convertir a int
-smtp_user = os.getenv("SMTP_USER")  # Tu correo electrónico
-smtp_password = os.getenv("SMTP_PASSWORD")  # Contraseña o App password de tu correo
+# Obtener credenciales de Gmail del archivo .env
+email_sender = os.environ.get("GoogleMail_EmailSender")
+email_password = os.environ.get("GoogleMail_ApiKey")
+smtp_host = os.environ.get("GoogleMail_Host")
+smtp_port = int(os.environ.get("GoogleMail_Port"))
 
-# Función para enviar correos usando SMTP
-def send_email(subject, recipient_email, body_html):
-    # Crear el mensaje
-    message = MIMEMultipart("alternative")
-    message["Subject"] = subject
-    message["From"] = smtp_user
-    message["To"] = recipient_email
-
-    # Crear la parte HTML del mensaje
-    part_html = MIMEText(body_html, "html")
-    message.attach(part_html)
-
+# Función para enviar correos
+def send_email_smtp(to_email, subject, body):
     try:
-        # Conectar al servidor SMTP usando SSL
-        with smtplib.SMTP_SSL(smtp_server, smtp_port) as server:
-            server.login(smtp_user, smtp_password)  # Iniciar sesión con el servidor SMTP
-            server.sendmail(smtp_user, recipient_email, message.as_string())  # Enviar correo
-        return True, "Email sent successfully"
+        msg = MIMEMultipart()
+        msg['From'] = email_sender
+        msg['To'] = to_email
+        msg['Subject'] = subject
+        msg.attach(MIMEText(body, 'plain'))
+
+        # Conectar al servidor SMTP de Gmail y enviar el correo
+        server = smtplib.SMTP(smtp_host, smtp_port)
+        server.starttls()
+        server.login(email_sender, email_password)
+        server.send_message(msg)
+        server.quit()
+
+        return True
     except Exception as e:
-        return False, str(e)
+        return str(e)
 
-# Endpoint para enviar correos
-@app.route('/send-email', methods=['POST'])
-def send_email_endpoint():
-    data = request.json
-    subject = data.get('subject')
-    recipient = data.get('recipient')
-    body_html = data.get('body_html')
+# Endpoint para enviar correos genéricos
+@app.route('/send_email', methods=['POST'])
+def send_email():
+    data = request.get_json()
 
-    success, result = send_email(subject, recipient, body_html)
+    # Validar los campos requeridos
+    if 'email' not in data or 'subject' not in data or 'body' not in data:
+        return jsonify({'error': 'Missing required fields'}), 400
 
-    if success:
-        print('Email sent successfully')
-        return jsonify({'message': result})
+    result = send_email_smtp(data['email'], data['subject'], data['body'])
+    if result is True:
+        return jsonify({'success': 'Email sent successfully'}), 200
     else:
-        print('Failed to send email')
-        return jsonify({'error': 'Failed to send email', 'details': result})
+        return jsonify({'error': result}), 500
 
-# Endpoint para obtener usuarios (ejemplo)
-@app.route('/get-users', methods=['GET'])
-def get_users():
-    return jsonify([
-        {'name': 'John Doe', 'email': 'johndoe@example.com'},
-        {'name': 'Jane Doe', 'email': 'janedoe@example.com'}
-    ])
+# Endpoint para enviar correos de 2FA
+@app.route('/validation', methods=['POST'])
+def validation():
+    data = request.get_json()
 
-# Endpoint para validar usuarios
-@app.route("/validation", methods=['POST'])
-def validation_user():
-    data = request.json
-    email = data.get('email')
-    code = data.get('code')
-    subject = "Código de validación"
-    body_html = f"<p>Tu código de validación es: <strong>{code}</strong></p>"
+    # Validar el campo de email y el código 2FA
+    if 'email' not in data or 'code2FA' not in data:  # Cambia a code2FA
+        return jsonify({'error': 'Missing required fields'}), 400
 
-    success, result = send_email(subject, email, body_html)
+    subject = "Your 2FA Code"
+    body = f"Your 2FA code is: {data['code2FA']}. Please use this to complete your login."
 
-    if success:
-        print('Validation email sent successfully')
-        return jsonify({'message': result})
+    result = send_email_smtp(data['email'], subject, body)
+    if result is True:
+        return jsonify({'success': '2FA email sent successfully'}), 200
     else:
-        print('Failed to send validation email')
-        return jsonify({'error': 'Failed to send validation email', 'details': result})
+        return jsonify({'error': result}), 500
+
+
+# Endpoint para enviar correos de restablecimiento de contraseña
+@app.route('/reset-password', methods=['PATCH'])
+def reset_password():
+    data = request.get_json()
+
+    # Validar solo el campo de email (no se valida 'new_password' aquí)
+    if 'email' not in data:
+        return jsonify({'error': 'Missing required fields'}), 400
+
+    subject = "Password Reset Request"
+    body = f"Your new password is: {data.get('new_password', 'unknown')}."  # Aquí puedes dejar un valor por defecto si no viene la contraseña
+
+    result = send_email_smtp(data['email'], subject, body)
+    if result is True:
+        return jsonify({'success': 'Password reset email sent successfully'}), 200
+    else:
+        return jsonify({'error': result}), 500
+
+    
 
 if __name__ == '__main__':
     app.run(debug=True)
